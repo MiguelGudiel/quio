@@ -20,17 +20,17 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
 
     final request = http.Request(options.method, options.uri);
 
-    _applyHeaders(request, options.headers);
-
-    if (options.data != null) {
-      _applyBody(request, options.data);
-    }
-
     try {
+      _applyHeaders(request, options.headers);
+
+      if (options.data != null) {
+        _applyBody(request, options.data);
+      }
+
       Future<http.StreamedResponse> responseFuture = httpClient.send(request);
 
+      // Connection phase timeout. Applies strictly to the initial handshake.
       if (options.connectTimeout != null) {
-        // Enforce connection establishment hard limit.
         responseFuture = responseFuture.timeout(
           options.connectTimeout!,
           onTimeout: () => throw TimeoutException(
@@ -44,6 +44,8 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
       
       Stream<List<int>> responseStream = streamedResponse.stream;
 
+      // Data transmission phase timeout. 
+      // Injected into the stream pipeline to catch stalling during chunk reads.
       if (options.receiveTimeout != null) {
         responseStream = responseStream.timeout(
           options.receiveTimeout!,
@@ -79,8 +81,15 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
         headers: _extractHeaders(response.headers),
         requestOptions: options,
       );
+    } on JsonUnsupportedObjectError catch (e, stackTrace) {
+      throw QuioException(
+        requestOptions: options,
+        type: QuioErrorType.requestSerializationError,
+        error: e,
+        stackTrace: stackTrace,
+        message: 'Failed to serialize request payload: Unsupported object.',
+      );
     } on http.ClientException catch (e, stackTrace) {
-      // General failure in the underlying http package engine.
       throw QuioException(
         requestOptions: options,
         type: QuioErrorType.connectionError,
@@ -89,7 +98,7 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
         message: e.message,
       );
     } on TimeoutException catch (e, stackTrace) {
-      // Derive specific timeout vector.
+      // Disambiguate timeout origins based on the pipeline stage that threw.
       final isConnectTimeout = e.message?.startsWith('Connection') ?? false;
       
       throw QuioException(

@@ -30,6 +30,7 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
 
       Stream<List<int>> responseStream = ioResponse;
 
+      // Stream interruption for receive timeouts.
       if (options.receiveTimeout != null) {
         responseStream = responseStream.timeout(
           options.receiveTimeout!,
@@ -56,7 +57,16 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
         headers: _extractHeaders(ioResponse.headers),
         requestOptions: options,
       );
+    } on JsonUnsupportedObjectError catch (e, stackTrace) {
+      throw QuioException(
+        requestOptions: options,
+        type: QuioErrorType.requestSerializationError,
+        error: e,
+        stackTrace: stackTrace,
+        message: 'Failed to serialize request payload: Unsupported object.',
+      );
     } on SocketException catch (e, stackTrace) {
+      // Socket exceptions can represent either connectivity drops or underlying OS-level timeouts.
       final message = e.message.toLowerCase();
       final osMessage = e.osError?.message.toLowerCase() ?? '';
       final isTimeout = message.contains('timed out') || osMessage.contains('timed out');
@@ -69,8 +79,6 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
         message: e.message,
       );
     } on TimeoutException catch (e, stackTrace) {
-      // Differentiate between connect and receive timeouts based on context if possible.
-      // Defaulting to receiveTimeout here due to the stream sink implementation.
       throw QuioException(
         requestOptions: options,
         type: QuioErrorType.receiveTimeout,
@@ -79,7 +87,6 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
         message: e.message,
       );
     } on HandshakeException catch (e, stackTrace) {
-      // SSL/TLS negotiation fault.
       throw QuioException(
         requestOptions: options,
         type: QuioErrorType.badCertificate,
@@ -88,7 +95,6 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
         message: 'Handshake failed: ${e.message}',
       );
     } catch (e, stackTrace) {
-      // Fallback for fatal/unknown states.
       throw QuioException(
         requestOptions: options,
         type: QuioErrorType.unknown,

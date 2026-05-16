@@ -10,6 +10,7 @@ enum QuioErrorType {
   badResponse,
   cancel,
   connectionError,
+  requestSerializationError,
   unknown,
 }
 
@@ -32,12 +33,38 @@ class QuioException implements Exception {
     this.message,
   });
 
+  QuioException copyWith({
+    RequestOptions? requestOptions,
+    Response? response,
+    QuioErrorType? type,
+    Object? error,
+    StackTrace? stackTrace,
+    String? message,
+  }) {
+    return QuioException(
+      requestOptions: requestOptions ?? this.requestOptions,
+      response: response ?? this.response,
+      type: type ?? this.type,
+      error: error ?? this.error,
+      stackTrace: stackTrace ?? this.stackTrace,
+      message: message ?? this.message,
+    );
+  }
+
   @override
   String toString() {
-    var msg = 'QuioException [${type.name}]: ${message ?? "Unhandled transport fault"}';
-    if (error != null) {
-      msg += '\nUnderlying error: $error';
+    final buffer = StringBuffer()
+      ..writeln('QuioException [${type.name}]: ${message ?? "Unhandled transport fault"}')
+      ..writeln('Uri: ${requestOptions.method} ${requestOptions.uri}');
+
+    if (response != null) {
+      buffer.writeln('Status: ${response!.statusCode} ${response!.statusMessage ?? ""}');
     }
-    return msg;
+
+    if (error != null) {
+      buffer.writeln('Inner Error: $error');
+    }
+
+    return buffer.toString().trim();
   }
 }
