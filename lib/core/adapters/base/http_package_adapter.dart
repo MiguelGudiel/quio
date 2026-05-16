@@ -7,6 +7,7 @@ import '../contracts/http_client_adapter.dart';
 import '../../models/request_options.dart';
 import '../../models/response.dart';
 import '../../models/http_protocol_preference.dart';
+import '../../exceptions/quio_exception.dart';
 
 /// Base adapter mapping [RequestOptions] to standard [http.Client] implementations.
 abstract base class HttpPackageAdapter implements HttpClientAdapter {
@@ -28,18 +29,21 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
     try {
       Future<http.StreamedResponse> responseFuture = httpClient.send(request);
 
-      // Apply connectTimeout to the initial connection phase.
       if (options.connectTimeout != null) {
-        responseFuture = responseFuture.timeout(options.connectTimeout!);
+        // Enforce connection establishment hard limit.
+        responseFuture = responseFuture.timeout(
+          options.connectTimeout!,
+          onTimeout: () => throw TimeoutException(
+            'Connection timeout of ${options.connectTimeout?.inMilliseconds}ms exceeded',
+            options.connectTimeout,
+          ),
+        );
       }
 
       final streamedResponse = await responseFuture;
       
-      // Extract the raw byte stream from the response.
       Stream<List<int>> responseStream = streamedResponse.stream;
 
-      // Apply receiveTimeout to the data stream chunks.
-      // This throws a TimeoutException if the gap between chunks exceeds the duration.
       if (options.receiveTimeout != null) {
         responseStream = responseStream.timeout(
           options.receiveTimeout!,
@@ -55,7 +59,6 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
         );
       }
 
-      // Reconstruct the StreamedResponse with the timeout-injected stream
       final wrappedStreamedResponse = http.StreamedResponse(
         responseStream,
         streamedResponse.statusCode,
@@ -67,7 +70,6 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
         reasonPhrase: streamedResponse.reasonPhrase,
       );
 
-      // Process the stream into a final response string
       final response = await http.Response.fromStream(wrappedStreamedResponse);
 
       return Response(
@@ -77,11 +79,34 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
         headers: _extractHeaders(response.headers),
         requestOptions: options,
       );
-    } on TimeoutException catch (e) {
-      // TODO: Map to specific QuioException (e.g. QuioErrorType.connectionTimeout / receiveTimeout).
-      throw Exception('Timeout execution: ${e.message}');
-    } catch (e) {
-      throw Exception('Unexpected adapter error: $e');
+    } on http.ClientException catch (e, stackTrace) {
+      // General failure in the underlying http package engine.
+      throw QuioException(
+        requestOptions: options,
+        type: QuioErrorType.connectionError,
+        error: e,
+        stackTrace: stackTrace,
+        message: e.message,
+      );
+    } on TimeoutException catch (e, stackTrace) {
+      // Derive specific timeout vector.
+      final isConnectTimeout = e.message?.startsWith('Connection') ?? false;
+      
+      throw QuioException(
+        requestOptions: options,
+        type: isConnectTimeout ? QuioErrorType.connectionTimeout : QuioErrorType.receiveTimeout,
+        error: e,
+        stackTrace: stackTrace,
+        message: e.message,
+      );
+    } catch (e, stackTrace) {
+      throw QuioException(
+        requestOptions: options,
+        type: QuioErrorType.unknown,
+        error: e,
+        stackTrace: stackTrace,
+        message: 'Engine adapter encountered an unhandled fault.',
+      );
     }
   }
 

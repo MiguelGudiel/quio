@@ -1,3 +1,5 @@
+import 'package:quio/core/exceptions/quio_exception.dart';
+
 import '../adapters/contracts/http_client_adapter.dart';
 import '../models/base_options.dart';
 import '../models/request_options.dart';
@@ -149,7 +151,30 @@ class _QuioImpl implements Quio {
       protocolPreference: options.protocolPreference,
     );
 
-    final response = await httpClientAdapter.fetch(requestOptions);
-    return response as Response<T>;
+    try {
+      final response = await httpClientAdapter.fetch(requestOptions);
+      final statusCode = response.statusCode ?? 0;
+
+      if (statusCode < 200 || statusCode >= 300) {
+        throw QuioException(
+          requestOptions: requestOptions,
+          response: response,
+          type: QuioErrorType.badResponse,
+          message: 'Server responded with an invalid status code: $statusCode',
+        );
+      }
+
+      return response as Response<T>;
+    } on QuioException {
+      rethrow;
+    } catch (e, stackTrace) {
+      throw QuioException(
+        requestOptions: requestOptions,
+        type: QuioErrorType.unknown,
+        error: e,
+        stackTrace: stackTrace,
+        message: 'Unhandled error execution pipeline: $e',
+      );
+    }
   }
 }
