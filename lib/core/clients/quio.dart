@@ -1,3 +1,5 @@
+import 'package:quio/core/exceptions/quio_exception.dart';
+
 import '../adapters/contracts/http_client_adapter.dart';
 import '../models/base_options.dart';
 import '../models/request_options.dart';
@@ -7,6 +9,7 @@ import '../adapters/factory/adapter_factory_stub.dart'
     if (dart.library.io) '../adapters/factory/adapter_factory_io.dart';
 
 /// High-level HTTP client API.
+/// Acts as the primary facade for configuring and dispatching network requests.
 abstract interface class Quio {
   factory Quio({BaseOptions? options, HttpClientAdapter? adapter}) => 
       _QuioImpl(options, adapter);
@@ -127,6 +130,7 @@ class _QuioImpl implements Quio {
     Duration? connectTimeout,
     Duration? receiveTimeout,
   }) async {
+    // Merge precedence: Local request attributes override global base options.
     final mergedHeaders = <String, dynamic>{
       ...options.headers,
       ...?headers,
@@ -149,7 +153,38 @@ class _QuioImpl implements Quio {
       protocolPreference: options.protocolPreference,
     );
 
-    final response = await httpClientAdapter.fetch(requestOptions);
-    return response as Response<T>;
+    try {
+      final response = await httpClientAdapter.fetch(requestOptions);
+      final statusCode = response.statusCode ?? 0;
+
+      if (statusCode < 200 || statusCode >= 300) {
+        throw QuioException(
+          requestOptions: requestOptions,
+          response: response,
+          type: QuioErrorType.badResponse,
+          message: 'Server responded with an invalid status code: $statusCode',
+          stackTrace: StackTrace.current,
+        );
+      }
+
+      return Response<T>(
+        data: response.data as T?,
+        statusCode: response.statusCode,
+        statusMessage: response.statusMessage,
+        headers: response.headers,
+        requestOptions: response.requestOptions,
+      );
+    } on QuioException {
+      // Re-throw internal exceptions directly to preserve original trace and type.
+      rethrow;
+    } catch (e, stackTrace) {
+      throw QuioException(
+        requestOptions: requestOptions,
+        type: QuioErrorType.unknown,
+        error: e,
+        stackTrace: stackTrace,
+        message: 'Unhandled error execution pipeline: $e',
+      );
+    }
   }
 }

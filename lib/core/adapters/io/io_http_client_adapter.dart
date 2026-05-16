@@ -6,6 +6,7 @@ import '../contracts/http_client_adapter.dart';
 import '../../models/http_protocol_preference.dart';
 import '../../models/request_options.dart';
 import '../../models/response.dart';
+import '../../exceptions/quio_exception.dart';
 
 /// Native fallback adapter using dart:io. Supports HTTP/1.1 and HTTP/2.
 final class IoHttpClientAdapter implements HttpClientAdapter {
@@ -27,10 +28,9 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
 
       final ioResponse = await ioRequest.close();
 
-      // Treat the native response as a byte stream
       Stream<List<int>> responseStream = ioResponse;
 
-      // Apply receiveTimeout to the stream of chunks
+      // Stream interruption for receive timeouts.
       if (options.receiveTimeout != null) {
         responseStream = responseStream.timeout(
           options.receiveTimeout!,
@@ -46,7 +46,6 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
         );
       }
 
-      // Decode the (potentially timed-out) stream into a final String
       final body = await responseStream
           .transform(utf8.decoder)
           .join();
@@ -58,11 +57,51 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
         headers: _extractHeaders(ioResponse.headers),
         requestOptions: options,
       );
-    } on TimeoutException catch (e) {
-      // TODO: Map to specific QuioException.
-      throw Exception('Timeout execution: ${e.message}');
-    } catch (e) {
-      throw Exception('Unexpected IO adapter error: $e');
+    } on JsonUnsupportedObjectError catch (e, stackTrace) {
+      throw QuioException(
+        requestOptions: options,
+        type: QuioErrorType.requestSerializationError,
+        error: e,
+        stackTrace: stackTrace,
+        message: 'Failed to serialize request payload: Unsupported object.',
+      );
+    } on SocketException catch (e, stackTrace) {
+      // Socket exceptions can represent either connectivity drops or underlying OS-level timeouts.
+      final message = e.message.toLowerCase();
+      final osMessage = e.osError?.message.toLowerCase() ?? '';
+      final isTimeout = message.contains('timed out') || osMessage.contains('timed out');
+
+      throw QuioException(
+        requestOptions: options,
+        type: isTimeout ? QuioErrorType.connectionTimeout : QuioErrorType.connectionError,
+        error: e,
+        stackTrace: stackTrace,
+        message: e.message,
+      );
+    } on TimeoutException catch (e, stackTrace) {
+      throw QuioException(
+        requestOptions: options,
+        type: QuioErrorType.receiveTimeout,
+        error: e,
+        stackTrace: stackTrace,
+        message: e.message,
+      );
+    } on HandshakeException catch (e, stackTrace) {
+      throw QuioException(
+        requestOptions: options,
+        type: QuioErrorType.badCertificate,
+        error: e,
+        stackTrace: stackTrace,
+        message: 'Handshake failed: ${e.message}',
+      );
+    } catch (e, stackTrace) {
+      throw QuioException(
+        requestOptions: options,
+        type: QuioErrorType.unknown,
+        error: e,
+        stackTrace: stackTrace,
+        message: 'Unexpected IO subsystem error.',
+      );
     }
   }
 

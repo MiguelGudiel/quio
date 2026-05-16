@@ -24,13 +24,15 @@ class RequestOptions {
     this.protocolPreference = HttpProtocolPreference.auto,
   });
 
-  /// Resolves the final absolute URI by combining [baseUrl], [path], and [queryParameters].
+  /// Resolves the final absolute URI.
+  /// Handles base URL concatenation and query parameter merging.
   Uri get uri {
     String fullUrl = path;
     
-    // Bypass concatenation if path is already an absolute URL
+    // Fast path: bypass concatenation if path is already an absolute URL.
     if (!fullUrl.startsWith(RegExp(r'^https?://'))) {
       if (baseUrl.isNotEmpty) {
+        // Normalize slashes to prevent mangled URIs (e.g., domain.com//api or domain.comapi).
         if (baseUrl.endsWith('/') && fullUrl.startsWith('/')) {
           fullUrl = baseUrl + fullUrl.substring(1);
         } else if (!baseUrl.endsWith('/') && !fullUrl.startsWith('/')) {
