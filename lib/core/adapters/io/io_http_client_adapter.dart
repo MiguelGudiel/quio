@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,52 +13,66 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
 
   @override
   Future<Response<dynamic>> fetch(RequestOptions options) async {
-    _applyTimeouts(options);
+    _applyConnectTimeout(options);
     _warnUnsupportedProtocol(options.protocolPreference);
 
-    final uri = _buildUri(options);
-    final ioRequest = await _client.openUrl(options.method, uri);
+    try {
+      final ioRequest = await _client.openUrl(options.method, options.uri);
 
-    _applyHeaders(ioRequest, options.headers);
+      _applyHeaders(ioRequest, options.headers);
 
-    if (options.data != null) {
-      _writeBody(ioRequest, options.data);
+      if (options.data != null) {
+        _writeBody(ioRequest, options.data);
+      }
+
+      final ioResponse = await ioRequest.close();
+
+      // Treat the native response as a byte stream
+      Stream<List<int>> responseStream = ioResponse;
+
+      // Apply receiveTimeout to the stream of chunks
+      if (options.receiveTimeout != null) {
+        responseStream = responseStream.timeout(
+          options.receiveTimeout!,
+          onTimeout: (EventSink<List<int>> sink) {
+            sink.addError(
+              TimeoutException(
+                'Receive timeout of ${options.receiveTimeout?.inMilliseconds}ms exceeded',
+                options.receiveTimeout,
+              ),
+            );
+            sink.close();
+          },
+        );
+      }
+
+      // Decode the (potentially timed-out) stream into a final String
+      final body = await responseStream
+          .transform(utf8.decoder)
+          .join();
+
+      return Response(
+        data: body,
+        statusCode: ioResponse.statusCode,
+        statusMessage: ioResponse.reasonPhrase,
+        headers: _extractHeaders(ioResponse.headers),
+        requestOptions: options,
+      );
+    } on TimeoutException catch (e) {
+      // TODO: Map to specific QuioException.
+      throw Exception('Timeout execution: ${e.message}');
+    } catch (e) {
+      throw Exception('Unexpected IO adapter error: $e');
     }
-
-    final ioResponse = await ioRequest.close();
-
-    final body = await ioResponse
-        .transform(utf8.decoder) // Explicit UTF-8 decoding avoids SystemEncoding mismatches.
-        .join();
-
-    return Response(
-      data: body,
-      statusCode: ioResponse.statusCode,
-      statusMessage: ioResponse.reasonPhrase,
-      headers: _extractHeaders(ioResponse.headers),
-      requestOptions: options,
-    );
   }
 
   @override
   void close({bool force = false}) => _client.close(force: force);
 
-  void _applyTimeouts(RequestOptions options) {
+  void _applyConnectTimeout(RequestOptions options) {
     if (options.connectTimeout != null) {
       _client.connectionTimeout = options.connectTimeout;
     }
-  }
-
-  Uri _buildUri(RequestOptions options) {
-    final base = Uri.parse(options.path);
-    if (options.queryParameters.isEmpty) return base;
-
-    final merged = <String, String>{
-      ...base.queryParameters,
-      ...options.queryParameters.map((k, v) => MapEntry(k, v.toString())),
-    };
-
-    return base.replace(queryParameters: merged);
   }
 
   void _applyHeaders(HttpClientRequest request, Map<String, dynamic> headers) {

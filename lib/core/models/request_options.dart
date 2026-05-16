@@ -1,7 +1,8 @@
 import 'http_protocol_preference.dart';
 
-/// Request configuration parameters.
+/// Configuration for an impending HTTP request.
 class RequestOptions {
+  final String baseUrl;
   final String path;
   final String method;
   final Map<String, dynamic> headers;
@@ -12,6 +13,7 @@ class RequestOptions {
   final HttpProtocolPreference protocolPreference;
 
   RequestOptions({
+    this.baseUrl = '',
     required this.path,
     this.method = 'GET',
     this.headers = const {},
@@ -22,7 +24,36 @@ class RequestOptions {
     this.protocolPreference = HttpProtocolPreference.auto,
   });
 
+  /// Resolves the final absolute URI by combining [baseUrl], [path], and [queryParameters].
+  Uri get uri {
+    String fullUrl = path;
+    
+    // Bypass concatenation if path is already an absolute URL
+    if (!fullUrl.startsWith(RegExp(r'^https?://'))) {
+      if (baseUrl.isNotEmpty) {
+        if (baseUrl.endsWith('/') && fullUrl.startsWith('/')) {
+          fullUrl = baseUrl + fullUrl.substring(1);
+        } else if (!baseUrl.endsWith('/') && !fullUrl.startsWith('/')) {
+          fullUrl = '$baseUrl/$fullUrl';
+        } else {
+          fullUrl = baseUrl + fullUrl;
+        }
+      }
+    }
+
+    final baseUri = Uri.parse(fullUrl);
+    if (queryParameters.isEmpty) return baseUri;
+
+    final mergedQuery = <String, String>{
+      ...baseUri.queryParameters,
+      ...queryParameters.map((k, v) => MapEntry(k, v.toString())),
+    };
+
+    return baseUri.replace(queryParameters: mergedQuery);
+  }
+
   RequestOptions copyWith({
+    String? baseUrl,
     String? path,
     String? method,
     Map<String, dynamic>? headers,
@@ -33,6 +64,7 @@ class RequestOptions {
     HttpProtocolPreference? protocolPreference,
   }) {
     return RequestOptions(
+      baseUrl: baseUrl ?? this.baseUrl,
       path: path ?? this.path,
       method: method ?? this.method,
       headers: headers ?? this.headers,
