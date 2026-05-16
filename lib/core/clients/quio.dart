@@ -1,4 +1,5 @@
 import '../adapters/contracts/http_client_adapter.dart';
+import '../models/base_options.dart';
 import '../models/request_options.dart';
 import '../models/response.dart';
 
@@ -7,7 +8,11 @@ import '../adapters/factory/adapter_factory_stub.dart'
 
 /// High-level HTTP client API.
 abstract interface class Quio {
-  factory Quio({HttpClientAdapter? adapter}) => _QuioImpl(adapter);
+  factory Quio({BaseOptions? options, HttpClientAdapter? adapter}) => 
+      _QuioImpl(options, adapter);
+
+  BaseOptions get options;
+  set options(BaseOptions baseOptions);
 
   HttpClientAdapter get httpClientAdapter;
   set httpClientAdapter(HttpClientAdapter adapter);
@@ -59,10 +64,14 @@ abstract interface class Quio {
 
 class _QuioImpl implements Quio {
   @override
+  BaseOptions options;
+
+  @override
   HttpClientAdapter httpClientAdapter;
 
-  _QuioImpl(HttpClientAdapter? adapter)
-      : httpClientAdapter = adapter ?? createDefaultAdapter();
+  _QuioImpl(BaseOptions? options, HttpClientAdapter? adapter)
+      : options = options ?? BaseOptions(),
+        httpClientAdapter = adapter ?? createDefaultAdapter();
 
   @override
   Future<Response<T>> get<T>(
@@ -118,17 +127,29 @@ class _QuioImpl implements Quio {
     Duration? connectTimeout,
     Duration? receiveTimeout,
   }) async {
-    final options = RequestOptions(
+    final mergedHeaders = <String, dynamic>{
+      ...options.headers,
+      ...?headers,
+    };
+
+    final mergedQueryParams = <String, dynamic>{
+      ...options.queryParameters,
+      ...?queryParameters,
+    };
+
+    final requestOptions = RequestOptions(
+      baseUrl: options.baseUrl,
       path: path,
       method: method,
       data: data,
-      queryParameters: queryParameters ?? {},
-      headers: headers ?? {},
-      connectTimeout: connectTimeout,
-      receiveTimeout: receiveTimeout,
+      queryParameters: mergedQueryParams,
+      headers: mergedHeaders,
+      connectTimeout: connectTimeout ?? options.connectTimeout,
+      receiveTimeout: receiveTimeout ?? options.receiveTimeout,
+      protocolPreference: options.protocolPreference,
     );
 
-    final response = await httpClientAdapter.fetch(options);
+    final response = await httpClientAdapter.fetch(requestOptions);
     return response as Response<T>;
   }
 }

@@ -17,8 +17,7 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
   Future<Response<dynamic>> fetch(RequestOptions options) async {
     _warnUnsupportedProtocol(options.protocolPreference);
 
-    final uri = _buildUri(options);
-    final request = http.Request(options.method, uri);
+    final request = http.Request(options.method, options.uri);
 
     _applyHeaders(request, options.headers);
 
@@ -29,14 +28,47 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
     try {
       Future<http.StreamedResponse> responseFuture = httpClient.send(request);
 
+      // Apply connectTimeout to the initial connection phase.
       if (options.connectTimeout != null) {
         responseFuture = responseFuture.timeout(options.connectTimeout!);
       }
 
       final streamedResponse = await responseFuture;
       
-      // TODO: Apply receiveTimeout to stream read operations.
-      final response = await http.Response.fromStream(streamedResponse);
+      // Extract the raw byte stream from the response.
+      Stream<List<int>> responseStream = streamedResponse.stream;
+
+      // Apply receiveTimeout to the data stream chunks.
+      // This throws a TimeoutException if the gap between chunks exceeds the duration.
+      if (options.receiveTimeout != null) {
+        responseStream = responseStream.timeout(
+          options.receiveTimeout!,
+          onTimeout: (EventSink<List<int>> sink) {
+            sink.addError(
+              TimeoutException(
+                'Receive timeout of ${options.receiveTimeout?.inMilliseconds}ms exceeded',
+                options.receiveTimeout,
+              ),
+            );
+            sink.close();
+          },
+        );
+      }
+
+      // Reconstruct the StreamedResponse with the timeout-injected stream
+      final wrappedStreamedResponse = http.StreamedResponse(
+        responseStream,
+        streamedResponse.statusCode,
+        contentLength: streamedResponse.contentLength,
+        request: streamedResponse.request,
+        headers: streamedResponse.headers,
+        isRedirect: streamedResponse.isRedirect,
+        persistentConnection: streamedResponse.persistentConnection,
+        reasonPhrase: streamedResponse.reasonPhrase,
+      );
+
+      // Process the stream into a final response string
+      final response = await http.Response.fromStream(wrappedStreamedResponse);
 
       return Response(
         data: response.body, // TODO: Inject ResponseTransformers here.
@@ -46,26 +78,16 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
         requestOptions: options,
       );
     } on TimeoutException catch (e) {
-      // TODO: Map to specific QuioException.
-      throw Exception('Connection timeout execution: $e');
+      // TODO: Map to specific QuioException (e.g. QuioErrorType.connectionTimeout / receiveTimeout).
+      throw Exception('Timeout execution: ${e.message}');
+    } catch (e) {
+      throw Exception('Unexpected adapter error: $e');
     }
   }
 
   @override
   void close({bool force = false}) {
     httpClient.close();
-  }
-
-  Uri _buildUri(RequestOptions options) {
-    final base = Uri.parse(options.path);
-    if (options.queryParameters.isEmpty) return base;
-
-    final merged = <String, String>{
-      ...base.queryParameters,
-      ...options.queryParameters.map((k, v) => MapEntry(k, v.toString())),
-    };
-
-    return base.replace(queryParameters: merged);
   }
 
   void _applyHeaders(http.Request request, Map<String, dynamic> headers) {
@@ -92,7 +114,6 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
 
   Map<String, List<String>> _extractHeaders(Map<String, String> httpHeaders) {
     final result = <String, List<String>>{};
-    // package:http merges duplicate headers via comma-separated strings.
     httpHeaders.forEach((key, value) {
       result[key] = value.split(',').map((e) => e.trim()).toList();
     });

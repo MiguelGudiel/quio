@@ -29,8 +29,15 @@ class NetworkingDashboard extends StatefulWidget {
 }
 
 class _NetworkingDashboardState extends State<NetworkingDashboard> {
-  // Globally injected client instance.
-  final Quio _quio = Quio();
+  final Quio _quio = Quio(
+    options: BaseOptions(
+      baseUrl: 'https://jsonplaceholder.typicode.com',
+      connectTimeout: const Duration(seconds: 10),
+      headers: {
+        'Accept': 'application/json',
+      },
+    ),
+  );
 
   String _consoleOutput = 'Ready to execute requests...';
   bool _isLoading = false;
@@ -45,13 +52,13 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
     setState(() => _isLoading = true);
     try {
       final response = await _quio.get(
-        'https://jsonplaceholder.typicode.com/users/1',
+        '/users/1',
         queryParameters: {'env': 'production'},
       );
 
       _log(
         '[GET] Status: ${response.statusCode}\n'
-        'Headers: ${response.headers['content-type']}\n'
+        'URL Final: ${response.requestOptions.uri}\n'
         'Data: ${response.data}',
       );
     } catch (e) {
@@ -71,7 +78,7 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
       };
 
       final response = await _quio.post(
-        'https://jsonplaceholder.typicode.com/posts',
+        '/posts',
         data: payload,
       );
 
@@ -89,9 +96,7 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
   Future<void> _executeDeleteRequest() async {
     setState(() => _isLoading = true);
     try {
-      final response = await _quio.delete(
-        'https://jsonplaceholder.typicode.com/posts/1',
-      );
+      final response = await _quio.delete('/posts/1');
 
       _log(
         '[DELETE] Status: ${response.statusCode}\n'
