@@ -57,14 +57,6 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
         headers: _extractHeaders(ioResponse.headers),
         requestOptions: options,
       );
-    } on JsonUnsupportedObjectError catch (e, stackTrace) {
-      throw QuioException(
-        requestOptions: options,
-        type: QuioErrorType.requestSerializationError,
-        error: e,
-        stackTrace: stackTrace,
-        message: 'Failed to serialize request payload: Unsupported object.',
-      );
     } on SocketException catch (e, stackTrace) {
       // Socket exceptions can represent either connectivity drops or underlying OS-level timeouts.
       final message = e.message.toLowerCase();
@@ -119,16 +111,13 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
   }
 
   void _writeBody(HttpClientRequest request, dynamic data) {
-    switch (data) {
-      case String s:
-        request.write(s);
-      case List<int> bytes:
-        request.add(bytes);
-      case Map() || List():
-        request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(data));
-      default:
-        request.write(data.toString());
+    if (data is String) {
+      request.write(data);
+    } else if (data is List<int>) {
+      request.add(data);
+    } else {
+      // Fallback for unexpected payloads that escaped the Transformer pipeline.
+      request.write(data.toString());
     }
   }
 

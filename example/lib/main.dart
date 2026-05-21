@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:quio/quio.dart';
 import 'package:quio/core/exceptions/quio_exception.dart';
@@ -35,8 +36,6 @@ class NetworkingDashboard extends StatefulWidget {
 }
 
 class _NetworkingDashboardState extends State<NetworkingDashboard> {
-  /// Primary Quio client instance.
-  /// Configured with a base URL and global timeout constraints.
   final Quio _quio = Quio(
     options: BaseOptions(
       baseUrl: 'https://jsonplaceholder.typicode.com',
@@ -49,54 +48,171 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
     ),
   );
 
-  final List<String> _consoleLogs = ['[SYSTEM] Quio engine initialized and ready.'];
+  // We now store the log as a list of strings (lines) to support lazy rendering.
+  List<String> _currentLogLines = [
+    'Waiting for operations...',
+    'Ready to inspect network traffic.'
+  ];
+  bool _isErrorLog = false;
   bool _isLoading = false;
 
-  void _appendLog(String message) {
+  /// Helper to convert raw JSON data into beautifully indented strings.
+  String _prettyPrintJson(dynamic json) {
+    if (json == null) return 'null';
+    try {
+      const encoder = JsonEncoder.withIndent('  ');
+      return encoder.convert(json);
+    } catch (_) {
+      return json.toString();
+    }
+  }
+
+  /// Replaces the current log lines with new debug information.
+  void _setLog(List<String> lines, {bool isError = false}) {
     setState(() {
-      _consoleLogs.insert(0, '${DateTime.now().toIso8601String().split('T').last} -> $message');
+      _currentLogLines = lines;
+      _isErrorLog = isError;
     });
   }
 
-  /// Processes specific Quio exceptions to demonstrate granular error handling.
-  void _handleQuioError(String operation, QuioException e) {
-    final buffer = StringBuffer();
-    buffer.write('[$operation] FAILED - Type: ${e.type.name}\n');
+  /// Builds the debug report and splits it into discrete lines for the UI.
+  List<String> _buildDebugReportLines({
+    required String method,
+    required Uri uri,
+    required int elapsedMs,
+    int? statusCode,
+    String? statusMessage,
+    dynamic data,
+    Map<String, List<String>>? headers,
+    String? errorDetails,
+  }) {
+    final List<String> lines = [];
     
-    if (e.response != null) {
-      buffer.write('Status Code: ${e.response!.statusCode}\n');
+    lines.add('====== QUIO NETWORK INSPECTOR ======');
+    lines.add('Time    : ${DateTime.now().toIso8601String().split('T').last}');
+    lines.add('Request : $method $uri');
+    lines.add('Latency : ${elapsedMs}ms');
+    
+    if (statusCode != null) {
+      lines.add('Status  : $statusCode ${statusMessage ?? ""}');
     }
-    
-    buffer.write('Details: ${e.message}');
-    _appendLog(buffer.toString());
+
+    if (headers != null && headers.isNotEmpty) {
+      lines.add(''); // Empty line for spacing
+      lines.add('[Headers]');
+      lines.add('Count   : ${headers.length} fields');
+      if (headers.containsKey('content-type')) {
+        lines.add('Type    : ${headers['content-type']?.first}');
+      }
+    }
+
+    if (errorDetails != null) {
+      lines.add('');
+      lines.add('[Error Details]');
+      lines.addAll(errorDetails.split('\n'));
+    } else if (data != null) {
+      lines.add('');
+      lines.add('[Payload Metrics]');
+      lines.add('Type    : ${data.runtimeType}');
+      
+      if (data is List) {
+        lines.add('Size    : ${data.length} items');
+      } else if (data is Map) {
+        lines.add('Size    : ${data.length} keys');
+      } else if (data is String) {
+        lines.add('Size    : ${data.length} bytes');
+      }
+
+      lines.add('');
+      lines.add('[Payload Preview]');
+      
+      // The critical fix: we pretty print, then split by line, so the UI 
+      // can render them lazily via ListView.builder.
+      final prettyString = _prettyPrintJson(data);
+      lines.addAll(prettyString.split('\n'));
+    }
+
+    return lines;
   }
 
-  /// Demonstrates a standard HTTP GET request with query parameters.
+  void _handleQuioError(String method, QuioException e, int elapsedMs) {
+    _setLog(
+      _buildDebugReportLines(
+        method: method,
+        uri: e.requestOptions.uri,
+        elapsedMs: elapsedMs,
+        statusCode: e.response?.statusCode,
+        statusMessage: e.response?.statusMessage ?? e.type.name,
+        headers: e.response?.headers,
+        errorDetails: e.message ?? 'Unknown pipeline failure',
+      ),
+      isError: true,
+    );
+  }
+
   Future<void> _executeGetRequest() async {
     setState(() => _isLoading = true);
+    final stopwatch = Stopwatch()..start();
+    
     try {
       final response = await _quio.get(
         '/users/1',
         queryParameters: {'env': 'production'},
       );
+      stopwatch.stop();
 
-      _appendLog(
-        '[GET] SUCCESS - Status: ${response.statusCode}\n'
-        'URI: ${response.requestOptions.uri}\n'
-        'Payload: ${response.data}',
-      );
+      _setLog(_buildDebugReportLines(
+        method: 'GET',
+        uri: response.requestOptions.uri,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        statusCode: response.statusCode,
+        statusMessage: response.statusMessage,
+        headers: response.headers,
+        data: response.data,
+      ));
     } on QuioException catch (e) {
-      _handleQuioError('GET', e);
+      stopwatch.stop();
+      _handleQuioError('GET', e, stopwatch.elapsedMilliseconds);
     } catch (e) {
-      _appendLog('[GET] FATAL - Unhandled exception: $e');
+      stopwatch.stop();
+      _setLog(['FATAL UNHANDLED EXCEPTION: $e'], isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  /// Demonstrates an HTTP POST request with JSON payload serialization.
+  Future<void> _executeHeavyGetRequest() async {
+    setState(() => _isLoading = true);
+    final stopwatch = Stopwatch()..start();
+    
+    try {
+      final response = await _quio.get('/photos');
+      stopwatch.stop();
+
+      _setLog(_buildDebugReportLines(
+        method: 'GET',
+        uri: response.requestOptions.uri,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        statusCode: response.statusCode,
+        statusMessage: response.statusMessage,
+        headers: response.headers,
+        data: response.data,
+      ));
+    } on QuioException catch (e) {
+      stopwatch.stop();
+      _handleQuioError('GET', e, stopwatch.elapsedMilliseconds);
+    } catch (e) {
+      stopwatch.stop();
+      _setLog(['FATAL UNHANDLED EXCEPTION: $e'], isError: true);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _executePostRequest() async {
     setState(() => _isLoading = true);
+    final stopwatch = Stopwatch()..start();
+    
     try {
       final payload = {
         'title': 'Quio Architecture',
@@ -108,53 +224,129 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
         '/posts',
         data: payload,
       );
+      stopwatch.stop();
 
-      _appendLog(
-        '[POST] SUCCESS - Status: ${response.statusCode}\n'
-        'Response Data: ${response.data}',
-      );
+      _setLog(_buildDebugReportLines(
+        method: 'POST',
+        uri: response.requestOptions.uri,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        statusCode: response.statusCode,
+        statusMessage: response.statusMessage,
+        headers: response.headers,
+        data: response.data,
+      ));
     } on QuioException catch (e) {
-      _handleQuioError('POST', e);
+      stopwatch.stop();
+      _handleQuioError('POST', e, stopwatch.elapsedMilliseconds);
     } catch (e) {
-      _appendLog('[POST] FATAL - Unhandled exception: $e');
+      stopwatch.stop();
+      _setLog(['FATAL UNHANDLED EXCEPTION: $e'], isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  /// Demonstrates an HTTP DELETE request.
-  /// Intentionally targets an endpoint that might trigger specific server responses.
   Future<void> _executeDeleteRequest() async {
     setState(() => _isLoading = true);
+    final stopwatch = Stopwatch()..start();
+    
     try {
       final response = await _quio.delete('/posts/1');
+      stopwatch.stop();
 
-      _appendLog(
-        '[DELETE] SUCCESS - Status: ${response.statusCode}\n'
-        'Response Data: ${response.data}',
-      );
+      _setLog(_buildDebugReportLines(
+        method: 'DELETE',
+        uri: response.requestOptions.uri,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        statusCode: response.statusCode,
+        statusMessage: response.statusMessage,
+        headers: response.headers,
+        data: response.data,
+      ));
     } on QuioException catch (e) {
-      _handleQuioError('DELETE', e);
+      stopwatch.stop();
+      _handleQuioError('DELETE', e, stopwatch.elapsedMilliseconds);
     } catch (e) {
-      _appendLog('[DELETE] FATAL - Unhandled exception: $e');
+      stopwatch.stop();
+      _setLog(['FATAL UNHANDLED EXCEPTION: $e'], isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  /// Triggers a deliberate error to demonstrate QuioException handling.
   Future<void> _executeErrorRequest() async {
     setState(() => _isLoading = true);
+    final stopwatch = Stopwatch()..start();
+    
     try {
-      // Endpoint 404 target to force a badResponse QuioErrorType
-      await _quio.get('/invalid-endpoint-404');
+      final response = await _quio.get('/invalid-endpoint-404');
+      stopwatch.stop();
+      
+      _setLog(_buildDebugReportLines(
+        method: 'GET',
+        uri: response.requestOptions.uri,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        statusCode: response.statusCode,
+        statusMessage: response.statusMessage,
+        headers: response.headers,
+        data: response.data,
+      ));
     } on QuioException catch (e) {
-      _handleQuioError('ERROR-TEST', e);
+      stopwatch.stop();
+      _handleQuioError('GET', e, stopwatch.elapsedMilliseconds);
     } catch (e) {
-      _appendLog('[ERROR-TEST] FATAL: $e');
+      stopwatch.stop();
+      _setLog(['FATAL UNHANDLED EXCEPTION: $e'], isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Widget _buildOperationTile({
+    required String method,
+    required String title,
+    required String description,
+    required VoidCallback onExecute,
+    required Color methodColor,
+  }) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16.0),
+        leading: Container(
+          width: 70,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 6.0),
+          decoration: BoxDecoration(
+            color: methodColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: methodColor.withValues(alpha: 0.5)),
+          ),
+          child: Text(
+            method,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: methodColor,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text(description, style: const TextStyle(fontSize: 13)),
+        ),
+        trailing: FilledButton.tonal(
+          onPressed: _isLoading ? null : onExecute,
+          child: const Text('Execute'),
+        ),
+      ),
+    );
   }
 
   @override
@@ -178,63 +370,73 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
         ],
       ),
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Wrap(
-              spacing: 12.0,
-              runSpacing: 12.0,
-              alignment: WrapAlignment.center,
+          Expanded(
+            flex: 3,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
               children: [
-                FilledButton.icon(
-                  onPressed: _isLoading ? null : _executeGetRequest,
-                  icon: const Icon(Icons.download),
-                  label: const Text('GET'),
+                _buildOperationTile(
+                  method: 'GET',
+                  title: 'Standard Fetch',
+                  description: 'Retrieves a single user with query parameters. Small payload.',
+                  methodColor: Colors.blue,
+                  onExecute: _executeGetRequest,
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: _isLoading ? null : _executePostRequest,
-                  icon: const Icon(Icons.upload),
-                  label: const Text('POST'),
+                _buildOperationTile(
+                  method: 'GET',
+                  title: 'Heavy Payload (Isolate Test)',
+                  description: 'Fetches 5,000 photos. Large JSON decoded in background Isolate.',
+                  methodColor: Colors.indigo,
+                  onExecute: _executeHeavyGetRequest,
                 ),
-                OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _executeDeleteRequest,
-                  icon: const Icon(Icons.delete),
-                  label: const Text('DELETE'),
+                _buildOperationTile(
+                  method: 'POST',
+                  title: 'Serialize Payload',
+                  description: 'Sends a Dart Map serialized to JSON as the request body.',
+                  methodColor: Colors.green,
+                  onExecute: _executePostRequest,
                 ),
-                OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _executeErrorRequest,
-                  icon: const Icon(Icons.error_outline),
-                  label: const Text('FORCE ERROR'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                  ),
+                _buildOperationTile(
+                  method: 'DELETE',
+                  title: 'Remove Resource',
+                  description: 'Triggers a standard HTTP DELETE operation.',
+                  methodColor: Colors.orange,
+                  onExecute: _executeDeleteRequest,
+                ),
+                _buildOperationTile(
+                  method: 'ERROR',
+                  title: 'Force 404 Exception',
+                  description: 'Hits a non-existent endpoint to test QuioException handling.',
+                  methodColor: Colors.red,
+                  onExecute: _executeErrorRequest,
                 ),
               ],
             ),
           ),
           const Divider(height: 1),
           Expanded(
+            flex: 3,
             child: Container(
+              width: double.infinity,
               color: const Color(0xFF1E1E1E),
-              padding: const EdgeInsets.all(16.0),
-              child: ListView.separated(
-                itemCount: _consoleLogs.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final log = _consoleLogs[index];
-                  final isError = log.contains('FAILED') || log.contains('FATAL');
-                  
-                  return Text(
-                    log,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: isError ? Colors.redAccent : Colors.greenAccent,
-                      fontSize: 13.0,
-                      height: 1.4,
-                    ),
-                  );
-                },
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: SelectionArea(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  itemCount: _currentLogLines.length,
+                  itemBuilder: (context, index) {
+                    return Text(
+                      _currentLogLines[index],
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: _isErrorLog ? Colors.redAccent : Colors.greenAccent,
+                        fontSize: 13.0,
+                        height: 1.4,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),

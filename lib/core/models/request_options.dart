@@ -1,4 +1,5 @@
 import 'http_protocol_preference.dart';
+import '../transformers/transformer.dart';
 
 /// Configuration for an impending HTTP request.
 class RequestOptions {
@@ -11,6 +12,7 @@ class RequestOptions {
   final Duration? connectTimeout;
   final Duration? receiveTimeout;
   final HttpProtocolPreference protocolPreference;
+  final Transformer? transformer;
 
   RequestOptions({
     this.baseUrl = '',
@@ -22,6 +24,7 @@ class RequestOptions {
     this.connectTimeout,
     this.receiveTimeout,
     this.protocolPreference = HttpProtocolPreference.auto,
+    this.transformer,
   });
 
   /// Resolves the final absolute URI.
@@ -32,7 +35,7 @@ class RequestOptions {
     // Fast path: bypass concatenation if path is already an absolute URL.
     if (!fullUrl.startsWith(RegExp(r'^https?://'))) {
       if (baseUrl.isNotEmpty) {
-        // Normalize slashes to prevent mangled URIs (e.g., domain.com//api or domain.comapi).
+        // Normalize slashes to prevent mangled URIs.
         if (baseUrl.endsWith('/') && fullUrl.startsWith('/')) {
           fullUrl = baseUrl + fullUrl.substring(1);
         } else if (!baseUrl.endsWith('/') && !fullUrl.startsWith('/')) {
@@ -64,6 +67,7 @@ class RequestOptions {
     Duration? connectTimeout,
     Duration? receiveTimeout,
     HttpProtocolPreference? protocolPreference,
+    Transformer? transformer,
   }) {
     return RequestOptions(
       baseUrl: baseUrl ?? this.baseUrl,
@@ -75,6 +79,7 @@ class RequestOptions {
       connectTimeout: connectTimeout ?? this.connectTimeout,
       receiveTimeout: receiveTimeout ?? this.receiveTimeout,
       protocolPreference: protocolPreference ?? this.protocolPreference,
+      transformer: transformer ?? this.transformer,
     );
   }
 }

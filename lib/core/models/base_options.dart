@@ -1,4 +1,6 @@
 import 'http_protocol_preference.dart';
+import '../transformers/transformer.dart';
+import '../transformers/json_isolate_transformer.dart';
 
 /// Global default configurations for the Quio client instance.
 class BaseOptions {
@@ -8,6 +10,7 @@ class BaseOptions {
   Duration? connectTimeout;
   Duration? receiveTimeout;
   HttpProtocolPreference protocolPreference;
+  Transformer transformer;
 
   BaseOptions({
     this.baseUrl = '',
@@ -16,5 +19,6 @@ class BaseOptions {
     this.connectTimeout,
     this.receiveTimeout,
     this.protocolPreference = HttpProtocolPreference.auto,
-  });
+    Transformer? transformer,
+  }) : transformer = transformer ?? JsonIsolateTransformer();
 }

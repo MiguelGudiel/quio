@@ -141,19 +141,25 @@ class _QuioImpl implements Quio {
       ...?queryParameters,
     };
 
+    // Serialization Phase
+    final transformer = options.transformer;
+    final outboundData = data != null ? await transformer.transformRequest(data) : null;
+
     final requestOptions = RequestOptions(
       baseUrl: options.baseUrl,
       path: path,
       method: method,
-      data: data,
+      data: outboundData,
       queryParameters: mergedQueryParams,
       headers: mergedHeaders,
       connectTimeout: connectTimeout ?? options.connectTimeout,
       receiveTimeout: receiveTimeout ?? options.receiveTimeout,
       protocolPreference: options.protocolPreference,
+      transformer: transformer,
     );
 
     try {
+      // Transport Phase
       final response = await httpClientAdapter.fetch(requestOptions);
       final statusCode = response.statusCode ?? 0;
 
@@ -167,8 +173,11 @@ class _QuioImpl implements Quio {
         );
       }
 
+      // Deserialization Phase
+      final inboundData = await transformer.transformResponse(response.data);
+
       return Response<T>(
-        data: response.data as T?,
+        data: inboundData as T?,
         statusCode: response.statusCode,
         statusMessage: response.statusMessage,
         headers: response.headers,
@@ -178,12 +187,13 @@ class _QuioImpl implements Quio {
       // Re-throw internal exceptions directly to preserve original trace and type.
       rethrow;
     } catch (e, stackTrace) {
+      // Wrap any unhandled Dart execution errors (e.g., Isolate crashes, memory faults).
       throw QuioException(
         requestOptions: requestOptions,
         type: QuioErrorType.unknown,
         error: e,
         stackTrace: stackTrace,
-        message: 'Unhandled error execution pipeline: $e',
+        message: 'Unhandled error in execution pipeline: $e',
       );
     }
   }

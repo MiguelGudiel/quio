@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
@@ -75,19 +74,11 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
       final response = await http.Response.fromStream(wrappedStreamedResponse);
 
       return Response(
-        data: response.body, // TODO: Inject ResponseTransformers here.
+        data: response.body,
         statusCode: response.statusCode,
         statusMessage: response.reasonPhrase,
         headers: _extractHeaders(response.headers),
         requestOptions: options,
-      );
-    } on JsonUnsupportedObjectError catch (e, stackTrace) {
-      throw QuioException(
-        requestOptions: options,
-        type: QuioErrorType.requestSerializationError,
-        error: e,
-        stackTrace: stackTrace,
-        message: 'Failed to serialize request payload: Unsupported object.',
       );
     } on http.ClientException catch (e, stackTrace) {
       throw QuioException(
@@ -131,18 +122,13 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
   }
 
   void _applyBody(http.Request request, dynamic data) {
-    switch (data) {
-      case String s:
-        request.body = s;
-      case List<int> bytes:
-        request.bodyBytes = bytes;
-      case Map() || List():
-        if (!request.headers.containsKey('content-type')) {
-          request.headers['content-type'] = 'application/json; charset=utf-8';
-        }
-        request.body = jsonEncode(data);
-      default:
-        request.body = data.toString();
+    if (data is String) {
+      request.body = data;
+    } else if (data is List<int>) {
+      request.bodyBytes = data;
+    } else {
+      // Fallback for unexpected payloads that escaped the Transformer pipeline.
+      request.body = data.toString();
     }
   }
 
