@@ -11,6 +11,6 @@ HttpClientAdapter createDefaultAdapter() {
   } else if (Platform.isAndroid) {
     return CronetHttpClientAdapter();
   }
-  
+
   return IoHttpClientAdapter();
 }

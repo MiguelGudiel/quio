@@ -46,9 +46,7 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
         );
       }
 
-      final body = await responseStream
-          .transform(utf8.decoder)
-          .join();
+      final body = await responseStream.transform(utf8.decoder).join();
 
       return Response(
         data: body,
@@ -61,11 +59,15 @@ final class IoHttpClientAdapter implements HttpClientAdapter {
       // Socket exceptions can represent either connectivity drops or underlying OS-level timeouts.
       final message = e.message.toLowerCase();
       final osMessage = e.osError?.message.toLowerCase() ?? '';
-      final isTimeout = message.contains('timed out') || osMessage.contains('timed out');
+      final isTimeout =
+          message.contains('timed out') || osMessage.contains('timed out');
 
       throw QuioException(
         requestOptions: options,
-        type: isTimeout ? QuioErrorType.connectionTimeout : QuioErrorType.connectionError,
+        type:
+            isTimeout
+                ? QuioErrorType.connectionTimeout
+                : QuioErrorType.connectionError,
         error: e,
         stackTrace: stackTrace,
         message: e.message,

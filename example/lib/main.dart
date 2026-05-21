@@ -41,17 +41,14 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
       baseUrl: 'https://jsonplaceholder.typicode.com',
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
-      headers: {
-        'Accept': 'application/json',
-        'X-Client-Version': '1.0.0',
-      },
+      headers: {'Accept': 'application/json', 'X-Client-Version': '1.0.0'},
     ),
   );
 
   // We now store the log as a list of strings (lines) to support lazy rendering.
   List<String> _currentLogLines = [
     'Waiting for operations...',
-    'Ready to inspect network traffic.'
+    'Ready to inspect network traffic.',
   ];
   bool _isErrorLog = false;
   bool _isLoading = false;
@@ -87,12 +84,12 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
     String? errorDetails,
   }) {
     final List<String> lines = [];
-    
+
     lines.add('====== QUIO NETWORK INSPECTOR ======');
     lines.add('Time    : ${DateTime.now().toIso8601String().split('T').last}');
     lines.add('Request : $method $uri');
     lines.add('Latency : ${elapsedMs}ms');
-    
+
     if (statusCode != null) {
       lines.add('Status  : $statusCode ${statusMessage ?? ""}');
     }
@@ -114,7 +111,7 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
       lines.add('');
       lines.add('[Payload Metrics]');
       lines.add('Type    : ${data.runtimeType}');
-      
+
       if (data is List) {
         lines.add('Size    : ${data.length} items');
       } else if (data is Map) {
@@ -125,8 +122,8 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
 
       lines.add('');
       lines.add('[Payload Preview]');
-      
-      // The critical fix: we pretty print, then split by line, so the UI 
+
+      // The critical fix: we pretty print, then split by line, so the UI
       // can render them lazily via ListView.builder.
       final prettyString = _prettyPrintJson(data);
       lines.addAll(prettyString.split('\n'));
@@ -153,7 +150,7 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
   Future<void> _executeGetRequest() async {
     setState(() => _isLoading = true);
     final stopwatch = Stopwatch()..start();
-    
+
     try {
       final response = await _quio.get(
         '/users/1',
@@ -161,15 +158,17 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
       );
       stopwatch.stop();
 
-      _setLog(_buildDebugReportLines(
-        method: 'GET',
-        uri: response.requestOptions.uri,
-        elapsedMs: stopwatch.elapsedMilliseconds,
-        statusCode: response.statusCode,
-        statusMessage: response.statusMessage,
-        headers: response.headers,
-        data: response.data,
-      ));
+      _setLog(
+        _buildDebugReportLines(
+          method: 'GET',
+          uri: response.requestOptions.uri,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+          statusCode: response.statusCode,
+          statusMessage: response.statusMessage,
+          headers: response.headers,
+          data: response.data,
+        ),
+      );
     } on QuioException catch (e) {
       stopwatch.stop();
       _handleQuioError('GET', e, stopwatch.elapsedMilliseconds);
@@ -184,20 +183,22 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
   Future<void> _executeHeavyGetRequest() async {
     setState(() => _isLoading = true);
     final stopwatch = Stopwatch()..start();
-    
+
     try {
       final response = await _quio.get('/photos');
       stopwatch.stop();
 
-      _setLog(_buildDebugReportLines(
-        method: 'GET',
-        uri: response.requestOptions.uri,
-        elapsedMs: stopwatch.elapsedMilliseconds,
-        statusCode: response.statusCode,
-        statusMessage: response.statusMessage,
-        headers: response.headers,
-        data: response.data,
-      ));
+      _setLog(
+        _buildDebugReportLines(
+          method: 'GET',
+          uri: response.requestOptions.uri,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+          statusCode: response.statusCode,
+          statusMessage: response.statusMessage,
+          headers: response.headers,
+          data: response.data,
+        ),
+      );
     } on QuioException catch (e) {
       stopwatch.stop();
       _handleQuioError('GET', e, stopwatch.elapsedMilliseconds);
@@ -212,7 +213,7 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
   Future<void> _executePostRequest() async {
     setState(() => _isLoading = true);
     final stopwatch = Stopwatch()..start();
-    
+
     try {
       final payload = {
         'title': 'Quio Architecture',
@@ -220,21 +221,20 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
         'userId': 1,
       };
 
-      final response = await _quio.post(
-        '/posts',
-        data: payload,
-      );
+      final response = await _quio.post('/posts', data: payload);
       stopwatch.stop();
 
-      _setLog(_buildDebugReportLines(
-        method: 'POST',
-        uri: response.requestOptions.uri,
-        elapsedMs: stopwatch.elapsedMilliseconds,
-        statusCode: response.statusCode,
-        statusMessage: response.statusMessage,
-        headers: response.headers,
-        data: response.data,
-      ));
+      _setLog(
+        _buildDebugReportLines(
+          method: 'POST',
+          uri: response.requestOptions.uri,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+          statusCode: response.statusCode,
+          statusMessage: response.statusMessage,
+          headers: response.headers,
+          data: response.data,
+        ),
+      );
     } on QuioException catch (e) {
       stopwatch.stop();
       _handleQuioError('POST', e, stopwatch.elapsedMilliseconds);
@@ -249,20 +249,22 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
   Future<void> _executeDeleteRequest() async {
     setState(() => _isLoading = true);
     final stopwatch = Stopwatch()..start();
-    
+
     try {
       final response = await _quio.delete('/posts/1');
       stopwatch.stop();
 
-      _setLog(_buildDebugReportLines(
-        method: 'DELETE',
-        uri: response.requestOptions.uri,
-        elapsedMs: stopwatch.elapsedMilliseconds,
-        statusCode: response.statusCode,
-        statusMessage: response.statusMessage,
-        headers: response.headers,
-        data: response.data,
-      ));
+      _setLog(
+        _buildDebugReportLines(
+          method: 'DELETE',
+          uri: response.requestOptions.uri,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+          statusCode: response.statusCode,
+          statusMessage: response.statusMessage,
+          headers: response.headers,
+          data: response.data,
+        ),
+      );
     } on QuioException catch (e) {
       stopwatch.stop();
       _handleQuioError('DELETE', e, stopwatch.elapsedMilliseconds);
@@ -277,20 +279,22 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
   Future<void> _executeErrorRequest() async {
     setState(() => _isLoading = true);
     final stopwatch = Stopwatch()..start();
-    
+
     try {
       final response = await _quio.get('/invalid-endpoint-404');
       stopwatch.stop();
-      
-      _setLog(_buildDebugReportLines(
-        method: 'GET',
-        uri: response.requestOptions.uri,
-        elapsedMs: stopwatch.elapsedMilliseconds,
-        statusCode: response.statusCode,
-        statusMessage: response.statusMessage,
-        headers: response.headers,
-        data: response.data,
-      ));
+
+      _setLog(
+        _buildDebugReportLines(
+          method: 'GET',
+          uri: response.requestOptions.uri,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+          statusCode: response.statusCode,
+          statusMessage: response.statusMessage,
+          headers: response.headers,
+          data: response.data,
+        ),
+      );
     } on QuioException catch (e) {
       stopwatch.stop();
       _handleQuioError('GET', e, stopwatch.elapsedMilliseconds);
@@ -313,7 +317,9 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.5)),
+        side: BorderSide(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
@@ -379,21 +385,24 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
                 _buildOperationTile(
                   method: 'GET',
                   title: 'Standard Fetch',
-                  description: 'Retrieves a single user with query parameters. Small payload.',
+                  description:
+                      'Retrieves a single user with query parameters. Small payload.',
                   methodColor: Colors.blue,
                   onExecute: _executeGetRequest,
                 ),
                 _buildOperationTile(
                   method: 'GET',
                   title: 'Heavy Payload (Isolate Test)',
-                  description: 'Fetches 5,000 photos. Large JSON decoded in background Isolate.',
+                  description:
+                      'Fetches 5,000 photos. Large JSON decoded in background Isolate.',
                   methodColor: Colors.indigo,
                   onExecute: _executeHeavyGetRequest,
                 ),
                 _buildOperationTile(
                   method: 'POST',
                   title: 'Serialize Payload',
-                  description: 'Sends a Dart Map serialized to JSON as the request body.',
+                  description:
+                      'Sends a Dart Map serialized to JSON as the request body.',
                   methodColor: Colors.green,
                   onExecute: _executePostRequest,
                 ),
@@ -407,7 +416,8 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
                 _buildOperationTile(
                   method: 'ERROR',
                   title: 'Force 404 Exception',
-                  description: 'Hits a non-existent endpoint to test QuioException handling.',
+                  description:
+                      'Hits a non-existent endpoint to test QuioException handling.',
                   methodColor: Colors.red,
                   onExecute: _executeErrorRequest,
                 ),
@@ -430,7 +440,8 @@ class _NetworkingDashboardState extends State<NetworkingDashboard> {
                       _currentLogLines[index],
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: _isErrorLog ? Colors.redAccent : Colors.greenAccent,
+                        color:
+                            _isErrorLog ? Colors.redAccent : Colors.greenAccent,
                         fontSize: 13.0,
                         height: 1.4,
                       ),

@@ -172,9 +172,10 @@ final class MockHttpClientAdapter implements HttpClientAdapter {
 
     _calls.add(RecordedCall(options));
 
-    final behaviour = _queue.isNotEmpty
-        ? _queue.removeAt(0)
-        : _defaultBehaviour ?? _fallback(options);
+    final behaviour =
+        _queue.isNotEmpty
+            ? _queue.removeAt(0)
+            : _defaultBehaviour ?? _fallback(options);
 
     return behaviour.execute(options);
   }
@@ -186,11 +187,11 @@ final class MockHttpClientAdapter implements HttpClientAdapter {
 
   /// Default when nothing was programmed — returns 200 OK with empty body.
   _Behaviour _fallback(RequestOptions options) => _SuccessBehaviour(
-        body: '',
-        statusCode: 200,
-        statusMessage: 'OK',
-        headers: const {},
-      );
+    body: '',
+    statusCode: 200,
+    statusMessage: 'OK',
+    headers: const {},
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -270,21 +271,24 @@ final class _AdapterStub {
     String? message,
     int? statusCode,
   }) {
-    final response = statusCode != null
-        ? Response(
-            statusCode: statusCode,
-            statusMessage: 'Error',
-            headers: const {},
-            requestOptions: requestOptions,
-          )
-        : null;
+    final response =
+        statusCode != null
+            ? Response(
+              statusCode: statusCode,
+              statusMessage: 'Error',
+              headers: const {},
+              requestOptions: requestOptions,
+            )
+            : null;
 
-    thenThrow(QuioException(
-      requestOptions: requestOptions,
-      response: response,
-      type: type,
-      message: message,
-    ));
+    thenThrow(
+      QuioException(
+        requestOptions: requestOptions,
+        response: response,
+        type: type,
+        message: message,
+      ),
+    );
   }
 
   /// Programs a finite sequence of responses consumed in order (FIFO).
@@ -294,12 +298,14 @@ final class _AdapterStub {
       if (r._error != null) {
         _adapter._enqueue(_ErrorBehaviour(r._error!));
       } else {
-        _adapter._enqueue(_SuccessBehaviour(
-          body: r._body,
-          statusCode: r._statusCode,
-          statusMessage: r._statusMessage,
-          headers: r._headers,
-        ));
+        _adapter._enqueue(
+          _SuccessBehaviour(
+            body: r._body,
+            statusCode: r._statusCode,
+            statusMessage: r._statusMessage,
+            headers: r._headers,
+          ),
+        );
       }
     }
   }
@@ -325,11 +331,11 @@ final class MockResponse {
       'content-type': ['application/json'],
     },
     Object? error,
-  })  : _body = body,
-        _statusCode = statusCode,
-        _statusMessage = statusMessage,
-        _headers = headers,
-        _error = error;
+  }) : _body = body,
+       _statusCode = statusCode,
+       _statusMessage = statusMessage,
+       _headers = headers,
+       _error = error;
 
   factory MockResponse.success({
     dynamic body = '',
@@ -338,13 +344,12 @@ final class MockResponse {
     Map<String, List<String>> headers = const {
       'content-type': ['application/json'],
     },
-  }) =>
-      MockResponse._(
-        body: body,
-        statusCode: statusCode,
-        statusMessage: statusMessage,
-        headers: headers,
-      );
+  }) => MockResponse._(
+    body: body,
+    statusCode: statusCode,
+    statusMessage: statusMessage,
+    headers: headers,
+  );
 
   factory MockResponse.error(Object error) => MockResponse._(error: error);
 }

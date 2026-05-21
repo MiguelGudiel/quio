@@ -11,7 +11,7 @@ import '../adapters/factory/adapter_factory_stub.dart'
 /// High-level HTTP client API.
 /// Acts as the primary facade for configuring and dispatching network requests.
 abstract interface class Quio {
-  factory Quio({BaseOptions? options, HttpClientAdapter? adapter}) => 
+  factory Quio({BaseOptions? options, HttpClientAdapter? adapter}) =>
       _QuioImpl(options, adapter);
 
   BaseOptions get options;
@@ -73,16 +73,20 @@ class _QuioImpl implements Quio {
   HttpClientAdapter httpClientAdapter;
 
   _QuioImpl(BaseOptions? options, HttpClientAdapter? adapter)
-      : options = options ?? BaseOptions(),
-        httpClientAdapter = adapter ?? createDefaultAdapter();
+    : options = options ?? BaseOptions(),
+      httpClientAdapter = adapter ?? createDefaultAdapter();
 
   @override
   Future<Response<T>> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
-  }) =>
-      request<T>(path, method: 'GET', queryParameters: queryParameters, headers: headers);
+  }) => request<T>(
+    path,
+    method: 'GET',
+    queryParameters: queryParameters,
+    headers: headers,
+  );
 
   @override
   Future<Response<T>> post<T>(
@@ -90,8 +94,13 @@ class _QuioImpl implements Quio {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
-  }) =>
-      request<T>(path, method: 'POST', data: data, queryParameters: queryParameters, headers: headers);
+  }) => request<T>(
+    path,
+    method: 'POST',
+    data: data,
+    queryParameters: queryParameters,
+    headers: headers,
+  );
 
   @override
   Future<Response<T>> put<T>(
@@ -99,8 +108,13 @@ class _QuioImpl implements Quio {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
-  }) =>
-      request<T>(path, method: 'PUT', data: data, queryParameters: queryParameters, headers: headers);
+  }) => request<T>(
+    path,
+    method: 'PUT',
+    data: data,
+    queryParameters: queryParameters,
+    headers: headers,
+  );
 
   @override
   Future<Response<T>> patch<T>(
@@ -108,8 +122,13 @@ class _QuioImpl implements Quio {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
-  }) =>
-      request<T>(path, method: 'PATCH', data: data, queryParameters: queryParameters, headers: headers);
+  }) => request<T>(
+    path,
+    method: 'PATCH',
+    data: data,
+    queryParameters: queryParameters,
+    headers: headers,
+  );
 
   @override
   Future<Response<T>> delete<T>(
@@ -117,8 +136,13 @@ class _QuioImpl implements Quio {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
-  }) =>
-      request<T>(path, method: 'DELETE', data: data, queryParameters: queryParameters, headers: headers);
+  }) => request<T>(
+    path,
+    method: 'DELETE',
+    data: data,
+    queryParameters: queryParameters,
+    headers: headers,
+  );
 
   @override
   Future<Response<T>> request<T>(
@@ -131,10 +155,7 @@ class _QuioImpl implements Quio {
     Duration? receiveTimeout,
   }) async {
     // Merge precedence: Local request attributes override global base options.
-    final mergedHeaders = <String, dynamic>{
-      ...options.headers,
-      ...?headers,
-    };
+    final mergedHeaders = <String, dynamic>{...options.headers, ...?headers};
 
     final mergedQueryParams = <String, dynamic>{
       ...options.queryParameters,
@@ -146,8 +167,9 @@ class _QuioImpl implements Quio {
     RequestOptions? requestOptions;
 
     try {
-      final outboundData = data != null ? await transformer.transformRequest(data) : null;
-      
+      final outboundData =
+          data != null ? await transformer.transformRequest(data) : null;
+
       requestOptions = RequestOptions(
         baseUrl: options.baseUrl,
         path: path,
@@ -190,12 +212,10 @@ class _QuioImpl implements Quio {
       rethrow;
     } catch (e, stackTrace) {
       // Wrap any unhandled Dart execution errors (e.g., Isolate crashes, memory faults).
-      final safeOptions = requestOptions ?? RequestOptions(
-        baseUrl: options.baseUrl,
-        path: path,
-        method: method,
-      );
-      
+      final safeOptions =
+          requestOptions ??
+          RequestOptions(baseUrl: options.baseUrl, path: path, method: method);
+
       throw QuioException(
         requestOptions: safeOptions,
         type: QuioErrorType.unknown,

@@ -53,12 +53,17 @@ class QuioException implements Exception {
 
   @override
   String toString() {
-    final buffer = StringBuffer()
-      ..writeln('QuioException [${type.name}]: ${message ?? "Unhandled transport fault"}')
-      ..writeln('Uri: ${requestOptions.method} ${requestOptions.uri}');
+    final buffer =
+        StringBuffer()
+          ..writeln(
+            'QuioException [${type.name}]: ${message ?? "Unhandled transport fault"}',
+          )
+          ..writeln('Uri: ${requestOptions.method} ${requestOptions.uri}');
 
     if (response != null) {
-      buffer.writeln('Status: ${response!.statusCode} ${response!.statusMessage ?? ""}');
+      buffer.writeln(
+        'Status: ${response!.statusCode} ${response!.statusMessage ?? ""}',
+      );
     }
 
     if (error != null) {

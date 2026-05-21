@@ -32,18 +32,20 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
       if (options.connectTimeout != null) {
         responseFuture = responseFuture.timeout(
           options.connectTimeout!,
-          onTimeout: () => throw TimeoutException(
-            'Connection timeout of ${options.connectTimeout?.inMilliseconds}ms exceeded',
-            options.connectTimeout,
-          ),
+          onTimeout:
+              () =>
+                  throw TimeoutException(
+                    'Connection timeout of ${options.connectTimeout?.inMilliseconds}ms exceeded',
+                    options.connectTimeout,
+                  ),
         );
       }
 
       final streamedResponse = await responseFuture;
-      
+
       Stream<List<int>> responseStream = streamedResponse.stream;
 
-      // Data transmission phase timeout. 
+      // Data transmission phase timeout.
       // Injected into the stream pipeline to catch stalling during chunk reads.
       if (options.receiveTimeout != null) {
         responseStream = responseStream.timeout(
@@ -91,10 +93,13 @@ abstract base class HttpPackageAdapter implements HttpClientAdapter {
     } on TimeoutException catch (e, stackTrace) {
       // Disambiguate timeout origins based on the pipeline stage that threw.
       final isConnectTimeout = e.message?.startsWith('Connection') ?? false;
-      
+
       throw QuioException(
         requestOptions: options,
-        type: isConnectTimeout ? QuioErrorType.connectionTimeout : QuioErrorType.receiveTimeout,
+        type:
+            isConnectTimeout
+                ? QuioErrorType.connectionTimeout
+                : QuioErrorType.receiveTimeout,
         error: e,
         stackTrace: stackTrace,
         message: e.message,

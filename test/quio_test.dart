@@ -27,8 +27,7 @@ RequestOptions dummyOptions({
   String baseUrl = 'https://example.com',
   String path = '/test',
   String method = 'GET',
-}) =>
-    RequestOptions(baseUrl: baseUrl, path: path, method: method);
+}) => RequestOptions(baseUrl: baseUrl, path: path, method: method);
 
 /// Convenience: JSON-encodes a map into a string, simulating what a real
 /// server would return.
@@ -55,7 +54,7 @@ void main() {
       adapter: adapter,
     );
   });
-  
+
   group('GET requests', () {
     test('returns decoded response on 200 OK', () async {
       final body = jsonBody({'id': 1, 'name': 'Alice'});
@@ -186,13 +185,19 @@ void main() {
     test('concatenates baseUrl and relative path correctly', () async {
       adapter.whenFetch().thenReturn(body: '{}', statusCode: 200);
       await quio.get('/users/42');
-      expect(adapter.lastCall.uri.toString(), startsWith('https://api.example.com/users/42'));
+      expect(
+        adapter.lastCall.uri.toString(),
+        startsWith('https://api.example.com/users/42'),
+      );
     });
 
     test('handles path with no leading slash', () async {
       adapter.whenFetch().thenReturn(body: '{}', statusCode: 200);
       await quio.get('users/42');
-      expect(adapter.lastCall.uri.toString(), startsWith('https://api.example.com/users/42'));
+      expect(
+        adapter.lastCall.uri.toString(),
+        startsWith('https://api.example.com/users/42'),
+      );
     });
 
     test('does not double-slash when baseUrl ends with slash', () async {
@@ -201,9 +206,15 @@ void main() {
       await quio.get('/users/1');
 
       // Strip the scheme (https://) before checking — only the path must not have //.
-      final pathAndHost = adapter.lastCall.uri.toString().replaceFirst(RegExp(r'^https?://'), '');
-      expect(pathAndHost, isNot(contains('//')),
-          reason: 'Must not produce double slashes in path');
+      final pathAndHost = adapter.lastCall.uri.toString().replaceFirst(
+        RegExp(r'^https?://'),
+        '',
+      );
+      expect(
+        pathAndHost,
+        isNot(contains('//')),
+        reason: 'Must not produce double slashes in path',
+      );
     });
 
     test('absolute path bypasses base URL concatenation', () async {
@@ -237,56 +248,86 @@ void main() {
 
   group('Adapter-level exceptions (transport errors)', () {
     test('connectionTimeout is surfaced as QuioException', () async {
-      adapter.whenFetch().thenThrow(QuioException(
-        requestOptions: dummyOptions(),
-        type: QuioErrorType.connectionTimeout,
-        message: 'Connection timed out',
-      ));
+      adapter.whenFetch().thenThrow(
+        QuioException(
+          requestOptions: dummyOptions(),
+          type: QuioErrorType.connectionTimeout,
+          message: 'Connection timed out',
+        ),
+      );
 
       expect(
         () => quio.get('/timeout'),
         throwsA(
-          isA<QuioException>().having((e) => e.type, 'type', QuioErrorType.connectionTimeout),
+          isA<QuioException>().having(
+            (e) => e.type,
+            'type',
+            QuioErrorType.connectionTimeout,
+          ),
         ),
       );
     });
 
     test('receiveTimeout is surfaced as QuioException', () async {
-      adapter.whenFetch().thenThrow(QuioException(
-        requestOptions: dummyOptions(),
-        type: QuioErrorType.receiveTimeout,
-        message: 'Receive timed out',
-      ));
+      adapter.whenFetch().thenThrow(
+        QuioException(
+          requestOptions: dummyOptions(),
+          type: QuioErrorType.receiveTimeout,
+          message: 'Receive timed out',
+        ),
+      );
 
       expect(
         () => quio.get('/slow'),
-        throwsA(isA<QuioException>().having((e) => e.type, 'type', QuioErrorType.receiveTimeout)),
+        throwsA(
+          isA<QuioException>().having(
+            (e) => e.type,
+            'type',
+            QuioErrorType.receiveTimeout,
+          ),
+        ),
       );
     });
 
     test('connectionError is surfaced as QuioException', () async {
-      adapter.whenFetch().thenThrow(QuioException(
-        requestOptions: dummyOptions(),
-        type: QuioErrorType.connectionError,
-        message: 'Network unreachable',
-      ));
+      adapter.whenFetch().thenThrow(
+        QuioException(
+          requestOptions: dummyOptions(),
+          type: QuioErrorType.connectionError,
+          message: 'Network unreachable',
+        ),
+      );
 
       expect(
         () => quio.get('/unreachable'),
-        throwsA(isA<QuioException>().having((e) => e.type, 'type', QuioErrorType.connectionError)),
+        throwsA(
+          isA<QuioException>().having(
+            (e) => e.type,
+            'type',
+            QuioErrorType.connectionError,
+          ),
+        ),
       );
     });
 
     test('badCertificate is surfaced as QuioException', () async {
-      adapter.whenFetch().thenThrow(QuioException(
-        requestOptions: dummyOptions(),
-        type: QuioErrorType.badCertificate,
-        message: 'SSL handshake failed',
-      ));
+      adapter.whenFetch().thenThrow(
+        QuioException(
+          requestOptions: dummyOptions(),
+          type: QuioErrorType.badCertificate,
+          message: 'SSL handshake failed',
+        ),
+      );
 
       expect(
         () => quio.get('/secure'),
-        throwsA(isA<QuioException>().having((e) => e.type, 'type', QuioErrorType.badCertificate)),
+        throwsA(
+          isA<QuioException>().having(
+            (e) => e.type,
+            'type',
+            QuioErrorType.badCertificate,
+          ),
+        ),
       );
     });
 
@@ -295,7 +336,13 @@ void main() {
 
       expect(
         () => quio.get('/broken'),
-        throwsA(isA<QuioException>().having((e) => e.type, 'type', QuioErrorType.unknown)),
+        throwsA(
+          isA<QuioException>().having(
+            (e) => e.type,
+            'type',
+            QuioErrorType.unknown,
+          ),
+        ),
       );
     });
   });
@@ -321,7 +368,8 @@ void main() {
 
     test('transformResponse output becomes response.data', () async {
       const rawBody = '{"id":5}';
-      transformer.onTransformResponse = (data) async => jsonDecode(data as String);
+      transformer.onTransformResponse =
+          (data) async => jsonDecode(data as String);
       adapter.whenFetch().thenReturn(body: rawBody, statusCode: 200);
 
       final response = await quio.get('/items/5');
@@ -329,25 +377,43 @@ void main() {
       expect(response.data, {'id': 5});
     });
 
-    test('exception in transformRequest is wrapped as QuioErrorType.unknown', () async {
-      transformer.requestError = Exception('Encode failure');
-      adapter.whenFetch().thenReturn(body: '{}', statusCode: 200);
+    test(
+      'exception in transformRequest is wrapped as QuioErrorType.unknown',
+      () async {
+        transformer.requestError = Exception('Encode failure');
+        adapter.whenFetch().thenReturn(body: '{}', statusCode: 200);
 
-      expect(
-        () => quio.post('/items', data: {'x': 1}),
-        throwsA(isA<QuioException>().having((e) => e.type, 'type', QuioErrorType.unknown)),
-      );
-    });
+        expect(
+          () => quio.post('/items', data: {'x': 1}),
+          throwsA(
+            isA<QuioException>().having(
+              (e) => e.type,
+              'type',
+              QuioErrorType.unknown,
+            ),
+          ),
+        );
+      },
+    );
 
-    test('exception in transformResponse is wrapped as QuioErrorType.unknown', () async {
-      transformer.responseError = Exception('Decode failure');
-      adapter.whenFetch().thenReturn(body: 'not-json', statusCode: 200);
+    test(
+      'exception in transformResponse is wrapped as QuioErrorType.unknown',
+      () async {
+        transformer.responseError = Exception('Decode failure');
+        adapter.whenFetch().thenReturn(body: 'not-json', statusCode: 200);
 
-      expect(
-        () => quio.get('/items'),
-        throwsA(isA<QuioException>().having((e) => e.type, 'type', QuioErrorType.unknown)),
-      );
-    });
+        expect(
+          () => quio.get('/items'),
+          throwsA(
+            isA<QuioException>().having(
+              (e) => e.type,
+              'type',
+              QuioErrorType.unknown,
+            ),
+          ),
+        );
+      },
+    );
   });
 
   group('Response sequence (retry-like scenarios)', () {
@@ -355,11 +421,13 @@ void main() {
       final options = dummyOptions();
 
       adapter.whenFetch().thenReturnSequence([
-        MockResponse.error(QuioException(
-          requestOptions: options,
-          type: QuioErrorType.connectionError,
-          message: 'Transient error',
-        )),
+        MockResponse.error(
+          QuioException(
+            requestOptions: options,
+            type: QuioErrorType.connectionError,
+            message: 'Transient error',
+          ),
+        ),
         MockResponse.success(body: jsonBody({'ok': true}), statusCode: 200),
       ]);
 
@@ -445,10 +513,8 @@ void main() {
 
   group('Mock adapter inspection', () {
     test('records all calls in order', () async {
-      adapter.whenFetch()
-        .thenReturn(body: '{}', statusCode: 200);
-      adapter.whenFetch()
-        .thenReturn(body: '{}', statusCode: 201);
+      adapter.whenFetch().thenReturn(body: '{}', statusCode: 200);
+      adapter.whenFetch().thenReturn(body: '{}', statusCode: 201);
 
       await quio.get('/a');
       await quio.post('/b', data: null);
@@ -460,10 +526,8 @@ void main() {
     });
 
     test('lastCall and firstCall accessors work correctly', () async {
-      adapter.whenFetch()
-        .thenReturn(body: '{}', statusCode: 200);
-      adapter.whenFetch()
-        .thenReturn(body: '{}', statusCode: 200);
+      adapter.whenFetch().thenReturn(body: '{}', statusCode: 200);
+      adapter.whenFetch().thenReturn(body: '{}', statusCode: 200);
 
       await quio.get('/first');
       await quio.get('/last');
@@ -489,7 +553,11 @@ void main() {
       expect(
         () => quio.get('/anything'),
         throwsA(
-          isA<QuioException>().having((e) => e.type, 'type', QuioErrorType.unknown),
+          isA<QuioException>().having(
+            (e) => e.type,
+            'type',
+            QuioErrorType.unknown,
+          ),
         ),
       );
     });
@@ -511,12 +579,19 @@ void main() {
 
     test('replacing the adapter replaces the transport layer', () async {
       final secondAdapter = MockHttpClientAdapter();
-      secondAdapter.whenFetch().thenReturn(body: '{"source":"second"}', statusCode: 200);
+      secondAdapter.whenFetch().thenReturn(
+        body: '{"source":"second"}',
+        statusCode: 200,
+      );
 
       quio.httpClientAdapter = secondAdapter;
       await quio.get('/something');
 
-      expect(adapter.callCount, 0, reason: 'Original adapter should not be called');
+      expect(
+        adapter.callCount,
+        0,
+        reason: 'Original adapter should not be called',
+      );
       expect(secondAdapter.callCount, 1);
     });
   });

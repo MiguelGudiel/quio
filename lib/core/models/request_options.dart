@@ -31,7 +31,7 @@ class RequestOptions {
   /// Handles base URL concatenation and query parameter merging.
   Uri get uri {
     String fullUrl = path;
-    
+
     // Fast path: bypass concatenation if path is already an absolute URL.
     if (!fullUrl.startsWith(RegExp(r'^https?://'))) {
       if (baseUrl.isNotEmpty) {
