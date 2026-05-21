@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import '../base/http_package_adapter.dart';
 
 /// Android-specific adapter using Cronet.
-/// 
+///
 /// TODO: Implement disk/memory cache mode, per-host QUIC hints, and certificate transparency checks.
 final class CronetHttpClientAdapter extends HttpPackageAdapter {
   @override
