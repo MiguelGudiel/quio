@@ -2,3 +2,12 @@ include: package:flutter_lints/flutter.yaml
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+
+analyzer:
+  errors:
+    unused_import: ignore
+    unused_local_variable: ignore
+    unnecessary_nullable_for_final_variable_declarations: ignore
+    unnecessary_non_null_assertion: ignore
+    depend_on_referenced_packages: warning
+    library_private_types_in_public_api: warning
